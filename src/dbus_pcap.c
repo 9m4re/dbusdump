@@ -26,6 +26,12 @@
 #include "dbus_svc_info.h"
 #include "dbus_pcap.h"
 
+#ifdef G_LOG_DOMAIN
+#undef G_LOG_DOMAIN
+#endif
+
+#define G_LOG_DOMAIN "DBUS_PCAP"
+
 typedef struct {
     struct timeval ts;
     GByteArray *blob;
@@ -81,6 +87,8 @@ enum {
 };
 
 static guint signals[N_SIGNALS];
+
+static GLogFunc       g_log_handler = NULL;
 
 static void initable_iface_init (
     gpointer g_class,
@@ -598,9 +606,9 @@ initable_init (
     {
       g_prefix_error (error, "Couldn't connect to %s bus: ",
           priv->bus_type == G_BUS_TYPE_SESSION ? "session" : "system");
+      g_error("Can't open DBus connection");
       return FALSE;
     }
-
   priv->caps = g_dbus_connection_get_capabilities (priv->connection);
 
   bus = g_dbus_proxy_new_sync (priv->connection,
@@ -619,7 +627,7 @@ initable_init (
     }
 
   /* initialize dbus svc info object */
-  priv->dbus_svc_info = dbus_svc_info_new (g_object_ref(bus), error);
+  priv->dbus_svc_info = dbus_svc_info_new (g_object_ref(bus), g_log_handler, error);
   if (NULL == priv->dbus_svc_info)
   {
     g_prefix_error (error, "Can't create dbus svc info");
@@ -724,9 +732,13 @@ dbus_pcap_monitor_new (
     gboolean is_dump_stdout,
 
     gboolean is_inject_dbus_ext_hdr,
-
+    GLogFunc log_handler,
     GError **error)
 {
+
+  g_log_handler = log_handler;
+  g_log_set_handler(G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG,  g_log_handler, NULL);
+
   return g_initable_new (
       DBUS_PCAP_MONITOR_TYPE, NULL, error,
       "bus-type", bus_type,

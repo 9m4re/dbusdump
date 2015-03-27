@@ -89,7 +89,7 @@ static GOptionEntry entries[] = {
       "Monitor system bus", NULL
     },
     { "verbose", 'v', 0, G_OPTION_ARG_NONE, &verbose,
-      "Print brief summaries of captured messages to stdout", NULL
+      "Print brief summaries of captured messages to stderr. Set DBUSDUMP_DEBUG_LOG=1 for display all debug message", NULL
     },
     { "quiet", 'q', 0, G_OPTION_ARG_NONE, &quiet,
       "Don't print out instructions", NULL
@@ -207,6 +207,21 @@ message_logged_cb (
     g_object_unref(message);
 }
 
+void log_handler (const gchar *log_domain, GLogLevelFlags log_level, const gchar *message, gpointer user_data)
+{
+    const gchar *dbusdump_debug_log;
+    gboolean is_debug_log;
+    dbusdump_debug_log = g_getenv ("DBUSDUMP_DEBUG_LOG");
+
+    is_debug_log = (dbusdump_debug_log != NULL) && (strcmp(dbusdump_debug_log, "1")==0); 
+
+    if ( is_debug_log || ( log_level & (G_LOG_LEVEL_ERROR | G_LOG_LEVEL_CRITICAL)) )
+    {
+       g_printf("%s:%s\n",log_domain, message);
+    }
+}
+
+
 int
 main (
     int argc,
@@ -221,7 +236,7 @@ main (
   g_type_init ();
   parse_arguments (&argc, &argv, &bus_type, &filename);
 
-  pcap = dbus_pcap_monitor_new (bus_type, filename, dump_stdout, !no_inject_dbus_ext_hdr, &error);
+  pcap = dbus_pcap_monitor_new (bus_type, filename, dump_stdout, !no_inject_dbus_ext_hdr, log_handler, &error);
   if (pcap == NULL)
     {
       fprintf (stderr, "%s", error->message);

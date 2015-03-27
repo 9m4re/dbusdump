@@ -1,1 +1,1 @@
-#define DBUSDUMP_VERSION "0.0.1"
+#define DBUSDUMP_VERSION "0.1.0"

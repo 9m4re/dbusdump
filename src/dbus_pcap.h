@@ -46,6 +46,7 @@ DbusPcapMonitor *dbus_pcap_monitor_new (
     const gchar *filename,
     gboolean is_dump_stdout ,
     gboolean is_inject_dbus_ext_hdr,
+    GLogFunc log_handler,
     GError **error);
 void dbus_pcap_monitor_stop (
     DbusPcapMonitor *self);

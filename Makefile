@@ -1,7 +1,9 @@
 CFLAGS = -g3 -O2 -Wall -Wunused
 DBUS_FLAGS = $(shell pkg-config --cflags --libs dbus-1)
 GIO_FLAGS := $(shell pkg-config --cflags --libs 'glib-2.0 >= 2.26' gio-2.0 gio-unix-2.0)
-PCAP_FLAGS := $(shell pcap-config --cflags pcap-config --libs)
+ifeq ($(PCAP_FLAGS),)
+	PCAP_FLAGS := $(shell pcap-config --cflags pcap-config --libs)
+endif
 DESTDIR =
 PREFIX = /usr/local
 BINDIR = $(DESTDIR)$(PREFIX)/bin
@@ -21,7 +23,7 @@ dbusdump: $(DBUSDUMP_SOURCES) $(DBUSDUMP_HEADERS)
 #	@mkdir -p dist/build
 	$(CC)  $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) \
 		-o $@ $(DBUSDUMP_SOURCES) \
-		$(GIO_FLAGS) $(PCAP_FLAGS)
+		$(GIO_FLAGS) $(DBUS_FLAGS) $(PCAP_FLAGS)
 
 memcheck: 
 	G_SLICE=always-malloc valgrind --suppressions=test/glib.supp --leak-check=full --show-reachable=yes --log-file=test/vgdump ./dbusdump  --system -v /tmp/abc

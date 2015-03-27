@@ -45,6 +45,7 @@ GType dbus_svc_info_get_type (void);
 
 DbusSvcInfo *dbus_svc_info_new (
         GDBusProxy *dbus_proxy,
+        GLogFunc log_handler,
         GError **error);
 
 struct _DbusSvcInfoItem

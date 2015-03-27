@@ -24,6 +24,13 @@
 #include "dbus_svc_info.h"
 #include "dbus_hf_ext.h"
 
+#ifdef G_LOG_DOMAIN
+#undef G_LOG_DOMAIN
+#endif
+
+#define G_LOG_DOMAIN "DBUS_SVC_INFO"
+
+
 struct _DbusSvcInfoPrivate {
 //    GBusType bus_type;
 //    GDBusConnection *dbus_connection;
@@ -31,7 +38,7 @@ struct _DbusSvcInfoPrivate {
     GHashTable *svc_lut;
     guint name_owner_changed_subscription_id;
 
-    GMutex svc_lut_mutex;
+GStaticMutex svc_lut_mutex;
 
 };
 
@@ -122,7 +129,7 @@ static void dbus_svc_info_dispose (GObject *object)
     dbus_svc_info_stop (self);
 
     /* clean up hash table */
-    g_mutex_lock(&priv->svc_lut_mutex);
+    g_static_mutex_lock(&priv->svc_lut_mutex);
 
     g_hash_table_iter_init (&iter, priv->svc_lut);
     while (g_hash_table_iter_next (&iter, NULL, (void *) &value))
@@ -135,7 +142,7 @@ static void dbus_svc_info_dispose (GObject *object)
 
     g_hash_table_destroy(priv->svc_lut);
     priv->svc_lut = NULL;
-    g_mutex_unlock(&priv->svc_lut_mutex);
+    g_static_mutex_unlock(&priv->svc_lut_mutex);
 
 
 //    g_object_unref(priv->dbus_connection)
@@ -217,8 +224,8 @@ static gboolean dbus_svc_info_get_item_by_name(DbusSvcInfo *self, const char *sv
     DbusSvcInfoPrivate *priv = self->priv;
     DbusSvcInfoItem *svc_info_item_tmp;
     gboolean ret = FALSE;
-
-    g_mutex_lock(&priv->svc_lut_mutex);
+    
+    g_static_mutex_lock(&priv->svc_lut_mutex);
     svc_info_item_tmp = g_hash_table_lookup(priv->svc_lut, svc_name);
     if (NULL != svc_info_item_tmp)
     {
@@ -238,7 +245,7 @@ static gboolean dbus_svc_info_get_item_by_name(DbusSvcInfo *self, const char *sv
         g_debug ("not found item for svc name %s", svc_name);
         ret = FALSE;
     }
-    g_mutex_unlock(&priv->svc_lut_mutex);
+    g_static_mutex_unlock(&priv->svc_lut_mutex);
 
     return ret;
 }
@@ -283,10 +290,12 @@ void dbus_svc_info_svc_lut_delete_item(DbusSvcInfo *self,const char *svc_name  /
     GHashTable *svc_lut = priv->svc_lut;
 
 
-    g_mutex_lock(&priv->svc_lut_mutex);
+    g_static_mutex_lock(&priv->svc_lut_mutex);
+
     svc_info_item_temp = g_hash_table_lookup(svc_lut, svc_name);
     g_hash_table_remove(svc_lut, svc_name);
-    g_mutex_unlock(&priv->svc_lut_mutex);
+ 
+   g_static_mutex_unlock(&priv->svc_lut_mutex);
 
     if (NULL != svc_info_item_temp)
     {
@@ -336,9 +345,9 @@ void dbus_svc_info_svc_lut_update_item(DbusSvcInfo *self, const char *svc_name, 
 
           dbus_svc_info_svc_lut_delete_item(self, svc_name);
           /*  if the key already exists in the GHashTable its current value is replaced with the new value */
-          g_mutex_lock(&priv->svc_lut_mutex);
+          g_static_mutex_lock(&priv->svc_lut_mutex);
           g_hash_table_insert(svc_lut, svc_info_item->svc_name, svc_info_item);
-          g_mutex_unlock(&priv->svc_lut_mutex);
+          g_static_mutex_unlock(&priv->svc_lut_mutex);
 
           g_debug("pid=%d, cmdline='%s'", svc_info_item->pid, svc_info_item->cmdline);
       }
@@ -392,13 +401,13 @@ void dbus_svc_info_dump_svc_lut(DbusSvcInfo *dbus_svc_info, GHashTable *svc_lut)
     DbusSvcInfoItem *value;
     GHashTableIter iter;
 
-    g_mutex_lock(&dbus_svc_info->priv->svc_lut_mutex);
+    g_static_mutex_lock(&dbus_svc_info->priv->svc_lut_mutex);
     g_hash_table_iter_init (&iter, svc_lut);
     while (g_hash_table_iter_next (&iter, (void *)&key, (void *) &value))
     {
         g_debug("'%s' \t | %d \t '%s'",  key, value->pid, value->cmdline);
     }
-    g_mutex_unlock(&dbus_svc_info->priv->svc_lut_mutex);
+    g_static_mutex_unlock(&dbus_svc_info->priv->svc_lut_mutex);
 
     return;
 }
@@ -515,7 +524,7 @@ initable_init (
     DbusSvcInfoPrivate *priv = self->priv;
     GDBusProxy *dbus_proxy = priv->dbus_proxy;
 
-
+    g_static_mutex_init(&priv->svc_lut_mutex);
     priv->svc_lut = g_hash_table_new(g_str_hash, g_str_equal);
     dbus_svc_info_svc_lut_refresh(self, error);
 
@@ -565,8 +574,11 @@ initable_iface_init (
 
 DbusSvcInfo * dbus_svc_info_new (
     GDBusProxy *dbus_proxy,
+    GLogFunc log_handler,
     GError **error)
 {
+  g_log_set_handler(G_LOG_DOMAIN, G_LOG_LEVEL_MASK,  log_handler, NULL);
+
   return g_initable_new (
       DBUS_SVC_INFO_TYPE, NULL, error,
       "dbus-proxy", dbus_proxy,
